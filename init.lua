@@ -114,9 +114,9 @@ vim.o.showmode = false
 --  Schedule the setting after `UiEnter` because it can increase startup-time.
 --  Remove this option if you want your OS clipboard to remain independent.
 --  See `:help 'clipboard'`
-vim.schedule(function()
-  vim.o.clipboard = 'unnamedplus'
-end)
+-- vim.schedule(function()
+--  vim.o.clipboard = 'unnamedplus'
+-- end)
 
 -- Enable break indent
 vim.o.breakindent = true
@@ -281,6 +281,7 @@ require('lazy').setup({
         topdelete = { text = '‾' },
         changedelete = { text = '~' },
       },
+      current_line_blame = true,
     },
   },
 
@@ -412,7 +413,18 @@ require('lazy').setup({
         --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
         --   },
         -- },
-        -- pickers = {}
+        pickers = {
+          live_grep = {
+            file_ignore_patterns = { 'node_modules', '.git', '.venv' },
+            additional_args = function(_)
+              return { '--hidden' }
+            end,
+          },
+          find_files = {
+            file_ignore_patterns = { 'node_modules', '.git', '.venv' },
+            hidden = true,
+          },
+        },
         extensions = {
           ['ui-select'] = {
             require('telescope.themes').get_dropdown(),
@@ -626,6 +638,22 @@ require('lazy').setup({
         end,
       })
 
+      -- Disable Ruff hover in favor of Pyright
+      vim.api.nvim_create_autocmd("LspAttach", {
+        group = vim.api.nvim_create_augroup('lsp_attach_disable_ruff_hover', { clear = true }),
+        callback = function(args)
+          local client = vim.lsp.get_client_by_id(args.data.client_id)
+          if client == nil then
+            return
+          end
+          if client.name == 'ruff' then
+            -- Disable hover in favor of Pyright
+            client.server_capabilities.hoverProvider = false
+          end
+        end,
+        desc = 'LSP: Disable hover capability from Ruff',
+      })
+
       -- Diagnostic Config
       -- See :help vim.diagnostic.Opts
       vim.diagnostic.config {
@@ -673,7 +701,20 @@ require('lazy').setup({
       local servers = {
         -- clangd = {},
         -- gopls = {},
-        -- pyright = {},
+        pyright = {
+          settings = {
+            pyright = {
+              -- Using Ruff's import organizer
+              disableOrganizeImports = true,
+            },
+            python = {
+              analysis = {
+                -- Ignore all files for analysis to exclusively use Ruff for linting
+                ignore = { '*' },
+              },
+            },
+          },
+        },
         -- rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
@@ -681,9 +722,8 @@ require('lazy').setup({
         --    https://github.com/pmizio/typescript-tools.nvim
         --
         -- But for many setups, the LSP (`ts_ls`) will work just fine
-        -- ts_ls = {},
-        --
-
+        ts_ls = {},
+        ruff = {},
         lua_ls = {
           -- cmd = { ... },
           -- filetypes = { ... },
@@ -768,11 +808,70 @@ require('lazy').setup({
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
+        python = {
+          -- Fix auto-fixable lint errors
+          "ruff_fix",
+          -- Run the Ruff formatter
+          "ruff_format",
+          -- Organize imports
+          "ruff_organize_imports",
+        },
+        -- TypeScript/JavaScript with Biome (formatting + import organization)
+        javascript = { "biome" },
+        javascriptreact = { "biome" },
+        typescript = { "biome" },
+        typescriptreact = { "biome" },
+        json = { "biome" },
         -- Conform can also run multiple formatters sequentially
-        -- python = { "isort", "black" },
-        --
         -- You can use 'stop_after_first' to run the first available formatter from the list
         -- javascript = { "prettierd", "prettier", stop_after_first = true },
+      },
+      -- Configure Biome formatter with smart project detection
+      formatters = {
+        biome = {
+          command = function(self, ctx)
+            -- Check if we're in a pnpm project by looking for pnpm-lock.yaml
+            local pnpm_lock = vim.fn.findfile("pnpm-lock.yaml", vim.fn.expand("%:p:h") .. ";")
+            if pnpm_lock ~= "" then
+              -- Check if biome is installed locally
+              local package_json = vim.fn.findfile("package.json", vim.fn.expand("%:p:h") .. ";")
+              if package_json ~= "" then
+                local package_dir = vim.fn.fnamemodify(package_json, ":h")
+                local node_modules_biome = package_dir .. "/node_modules/.bin/biome"
+                if vim.fn.executable(node_modules_biome) == 1 then
+                  return node_modules_biome
+                end
+              end
+              -- Fallback to pnpm exec for local project
+              return "pnpm"
+            else
+              -- Fallback to global pnpm dlx
+              return "pnpm"
+            end
+          end,
+          args = function(self, ctx)
+            -- Check if we're in a pnpm project
+            local pnpm_lock = vim.fn.findfile("pnpm-lock.yaml", vim.fn.expand("%:p:h") .. ";")
+            if pnpm_lock ~= "" then
+              -- Check if biome is installed locally
+              local package_json = vim.fn.findfile("package.json", vim.fn.expand("%:p:h") .. ";")
+              if package_json ~= "" then
+                local package_dir = vim.fn.fnamemodify(package_json, ":h")
+                local node_modules_biome = package_dir .. "/node_modules/.bin/biome"
+                if vim.fn.executable(node_modules_biome) == 1 then
+                  -- Use local biome directly
+                  return { "format", "--stdin-file-path", "$FILENAME" }
+                end
+              end
+              -- Use pnpm exec for local project
+              return { "exec", "biome", "format", "--stdin-file-path", "$FILENAME" }
+            else
+              -- Use pnpm dlx for global
+              return { "dlx", "@biomejs/biome", "format", "--stdin-file-path", "$FILENAME" }
+            end
+          end,
+          stdin = true,
+        },
       },
     },
   },
@@ -875,26 +974,21 @@ require('lazy').setup({
       signature = { enabled = true },
     },
   },
-
   { -- You can easily change to a different colorscheme.
     -- Change the name of the colorscheme plugin below, and then
     -- change the command in the config to whatever the name of that colorscheme is.
     --
     -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
-    'folke/tokyonight.nvim',
+    'tanvirtin/monokai.nvim',
     priority = 1000, -- Make sure to load this before all the other start plugins.
     config = function()
       ---@diagnostic disable-next-line: missing-fields
-      require('tokyonight').setup {
-        styles = {
-          comments = { italic = false }, -- Disable italics in comments
-        },
-      }
+      require('monokai').setup {}
 
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
       -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'tokyonight-night'
+      vim.cmd.colorscheme 'monokai'
     end,
   },
 
@@ -919,43 +1013,31 @@ require('lazy').setup({
       -- - sr)'  - [S]urround [R]eplace [)] [']
       require('mini.surround').setup()
 
-      -- Simple and easy statusline.
-      --  You could remove this setup call if you don't like it,
-      --  and try some other statusline plugin
-      local statusline = require 'mini.statusline'
-      -- set use_icons to true if you have a Nerd Font
-      statusline.setup { use_icons = vim.g.have_nerd_font }
-
-      -- You can configure sections in the statusline by overriding their
-      -- default behavior. For example, here we set the section for
-      -- cursor location to LINE:COLUMN
-      ---@diagnostic disable-next-line: duplicate-set-field
-      statusline.section_location = function()
-        return '%2l:%-2v'
-      end
-
+      require('mini.comment').setup()
       -- ... and there is more!
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
+    lazy = false,
+    branch = 'main',
     build = ':TSUpdate',
-    main = 'nvim-treesitter.configs', -- Sets main module to use for opts
-    -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
-    opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
-      -- Autoinstall languages that are not installed
-      auto_install = true,
-      highlight = {
-        enable = true,
-        -- Some languages depend on vim's regex highlighting system (such as Ruby) for indent rules.
-        --  If you are experiencing weird indenting issues, add the language to
-        --  the list of additional_vim_regex_highlighting and disabled languages for indent.
-        additional_vim_regex_highlighting = { 'ruby' },
-      },
-      indent = { enable = true, disable = { 'ruby' } },
-    },
+    config = function()
+      -- Install parsers using the new API
+      require('nvim-treesitter').install { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc', 'python' }
+      
+      -- Enable highlighting for all supported filetypes
+      vim.api.nvim_create_autocmd('FileType', {
+        pattern = { 'bash', 'c', 'diff', 'html', 'lua', 'markdown', 'python', 'vim' },
+        callback = function(args)
+          local buf = args.buf
+          vim.treesitter.start(buf)
+          -- Also enable syntax highlighting as fallback
+          vim.bo[buf].syntax = 'on'
+        end,
+      })
+    end,
     -- There are additional nvim-treesitter modules that you can use to interact
     -- with nvim-treesitter. You should go explore a few and see what interests you:
     --
@@ -984,7 +1066,7 @@ require('lazy').setup({
   --    This is the easiest way to modularize your config.
   --
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
-  -- { import = 'custom.plugins' },
+  { import = 'custom.plugins' },
   --
   -- For additional information with loading, sourcing and examples see `:help lazy.nvim-🔌-plugin-spec`
   -- Or use telescope!
