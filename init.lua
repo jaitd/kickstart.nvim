@@ -639,7 +639,7 @@ require('lazy').setup({
       })
 
       -- Disable Ruff hover in favor of Pyright
-      vim.api.nvim_create_autocmd("LspAttach", {
+      vim.api.nvim_create_autocmd('LspAttach', {
         group = vim.api.nvim_create_augroup('lsp_attach_disable_ruff_hover', { clear = true }),
         callback = function(args)
           local client = vim.lsp.get_client_by_id(args.data.client_id)
@@ -810,18 +810,18 @@ require('lazy').setup({
         lua = { 'stylua' },
         python = {
           -- Fix auto-fixable lint errors
-          "ruff_fix",
+          'ruff_fix',
           -- Run the Ruff formatter
-          "ruff_format",
+          'ruff_format',
           -- Organize imports
-          "ruff_organize_imports",
+          'ruff_organize_imports',
         },
         -- TypeScript/JavaScript with Biome (formatting + import organization)
-        javascript = { "biome" },
-        javascriptreact = { "biome" },
-        typescript = { "biome" },
-        typescriptreact = { "biome" },
-        json = { "biome" },
+        javascript = { 'biome' },
+        javascriptreact = { 'biome' },
+        typescript = { 'biome' },
+        typescriptreact = { 'biome' },
+        json = { 'biome' },
         -- Conform can also run multiple formatters sequentially
         -- You can use 'stop_after_first' to run the first available formatter from the list
         -- javascript = { "prettierd", "prettier", stop_after_first = true },
@@ -831,43 +831,43 @@ require('lazy').setup({
         biome = {
           command = function(self, ctx)
             -- Check if we're in a pnpm project by looking for pnpm-lock.yaml
-            local pnpm_lock = vim.fn.findfile("pnpm-lock.yaml", vim.fn.expand("%:p:h") .. ";")
-            if pnpm_lock ~= "" then
+            local pnpm_lock = vim.fn.findfile('pnpm-lock.yaml', vim.fn.expand '%:p:h' .. ';')
+            if pnpm_lock ~= '' then
               -- Check if biome is installed locally
-              local package_json = vim.fn.findfile("package.json", vim.fn.expand("%:p:h") .. ";")
-              if package_json ~= "" then
-                local package_dir = vim.fn.fnamemodify(package_json, ":h")
-                local node_modules_biome = package_dir .. "/node_modules/.bin/biome"
+              local package_json = vim.fn.findfile('package.json', vim.fn.expand '%:p:h' .. ';')
+              if package_json ~= '' then
+                local package_dir = vim.fn.fnamemodify(package_json, ':h')
+                local node_modules_biome = package_dir .. '/node_modules/.bin/biome'
                 if vim.fn.executable(node_modules_biome) == 1 then
                   return node_modules_biome
                 end
               end
               -- Fallback to pnpm exec for local project
-              return "pnpm"
+              return 'pnpm'
             else
               -- Fallback to global pnpm dlx
-              return "pnpm"
+              return 'pnpm'
             end
           end,
           args = function(self, ctx)
             -- Check if we're in a pnpm project
-            local pnpm_lock = vim.fn.findfile("pnpm-lock.yaml", vim.fn.expand("%:p:h") .. ";")
-            if pnpm_lock ~= "" then
+            local pnpm_lock = vim.fn.findfile('pnpm-lock.yaml', vim.fn.expand '%:p:h' .. ';')
+            if pnpm_lock ~= '' then
               -- Check if biome is installed locally
-              local package_json = vim.fn.findfile("package.json", vim.fn.expand("%:p:h") .. ";")
-              if package_json ~= "" then
-                local package_dir = vim.fn.fnamemodify(package_json, ":h")
-                local node_modules_biome = package_dir .. "/node_modules/.bin/biome"
+              local package_json = vim.fn.findfile('package.json', vim.fn.expand '%:p:h' .. ';')
+              if package_json ~= '' then
+                local package_dir = vim.fn.fnamemodify(package_json, ':h')
+                local node_modules_biome = package_dir .. '/node_modules/.bin/biome'
                 if vim.fn.executable(node_modules_biome) == 1 then
                   -- Use local biome directly
-                  return { "format", "--stdin-file-path", "$FILENAME" }
+                  return { 'format', '--stdin-file-path', '$FILENAME' }
                 end
               end
               -- Use pnpm exec for local project
-              return { "exec", "biome", "format", "--stdin-file-path", "$FILENAME" }
+              return { 'exec', 'biome', 'format', '--stdin-file-path', '$FILENAME' }
             else
               -- Use pnpm dlx for global
-              return { "dlx", "@biomejs/biome", "format", "--stdin-file-path", "$FILENAME" }
+              return { 'dlx', '@biomejs/biome', 'format', '--stdin-file-path', '$FILENAME' }
             end
           end,
           stdin = true,
@@ -979,16 +979,16 @@ require('lazy').setup({
     -- change the command in the config to whatever the name of that colorscheme is.
     --
     -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
-    'tanvirtin/monokai.nvim',
+    'loctvl842/monokai-pro.nvim',
     priority = 1000, -- Make sure to load this before all the other start plugins.
     config = function()
       ---@diagnostic disable-next-line: missing-fields
-      require('monokai').setup {}
+      require('monokai-pro').setup {}
 
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
       -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'monokai'
+      vim.cmd.colorscheme 'monokai-pro'
     end,
   },
 
@@ -1026,7 +1026,7 @@ require('lazy').setup({
     config = function()
       -- Install parsers using the new API
       require('nvim-treesitter').install { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc', 'python' }
-      
+
       -- Enable highlighting for all supported filetypes
       vim.api.nvim_create_autocmd('FileType', {
         pattern = { 'bash', 'c', 'diff', 'html', 'lua', 'markdown', 'python', 'vim' },
